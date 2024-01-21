@@ -42,4 +42,4 @@ app.UseAuthorization();
 // reverse proxy
 app.MapReverseProxy();
 
-app.Run();
+app.Run("http://localhost:5000");

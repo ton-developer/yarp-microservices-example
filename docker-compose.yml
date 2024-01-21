@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  yarp-gateway:
+    build:
+      context: ./Yarp-microservices-example
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    networks:
+      - mynetwork
+
+  user-api:
+    build:
+      context: ./User-microservices-example
+      dockerfile: Dockerfile
+    networks:
+      - mynetwork
+
+networks:
+  mynetwork:
+    driver: bridge
