@@ -1,4 +1,10 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Yarp_microservices_example.LoginService;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,8 +15,37 @@ builder.Services.AddHealthChecks();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddRateLimiter(rateLimiterOptions =>
+{
+    rateLimiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    rateLimiterOptions.AddPolicy("fixedIdentity", httpContext => 
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.User.Identity?.Name?.ToString(),
+            factory: s =>
+            
+                new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromSeconds(30)
+                }
+            )
+        );
+});
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer();
+    .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme,
+        options =>
+        {
+            IConfigurationSection jwtSettings = builder.Configuration.GetSection("JwtSettings");
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = jwtSettings["Issuer"],
+                ValidAudience = jwtSettings["Audience"],
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]))
+            };
+        });
 
 // authorization
 builder.Services.AddAuthorization(options =>
@@ -35,11 +70,53 @@ if (app.Environment.IsDevelopment())
 // health
 app.MapHealthChecks("/healthz");
 
+app.UseRateLimiter();
+
 // authorization
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapGet("/generateToken", (IConfiguration configuration) =>
+{
+    var jwtSettingsSections = configuration.GetSection("JwtSettings");
+    
+    var jwtSettings = new JwtConfiguration
+    {
+        Issuer = jwtSettingsSections["Issuer"],
+        Audience = jwtSettingsSections["Audience"],
+        SecretKey = jwtSettingsSections["SecretKey"]
+    };
+
+    var userId = "123"; 
+
+    var token = GenerateJwtToken(jwtSettings, userId);
+    return Results.Text(token);
+});
 
 // reverse proxy
 app.MapReverseProxy();
 
 app.Run("http://localhost:5000");
+
+string GenerateJwtToken(JwtConfiguration jwtSettings, string userId)
+{
+    var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey));
+    var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+    var claims = new List<Claim>
+    {
+        new ("userId", userId),
+        new ("name", "tonde")
+    };
+
+    var token = new JwtSecurityToken(
+        issuer: jwtSettings.Issuer,
+        audience: jwtSettings.Audience,
+        claims: claims,
+        expires: DateTime.UtcNow.AddHours(1),
+        signingCredentials: credentials
+    );
+
+    var tokenHandler = new JwtSecurityTokenHandler();
+    return tokenHandler.WriteToken(token);
+}
