@@ -14,12 +14,16 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-var persons = Enumerable.Range(1, 100).Select(num => new { Id = num, Name = new Faker().Person.FullName }).ToArray();
+var persons = 
+    Enumerable.Range(1, 100).Select(num => new { Id = num, Name = new Faker().Person.FullName }).ToArray();
 
-app.MapGet("/users", (string? filter) => persons.Where(p => string.IsNullOrWhiteSpace(filter) || p.Name.Contains(filter)));
+app.MapGet("admin/all-users", (string? filter) =>
+        persons.Where(p => string.IsNullOrWhiteSpace(filter) || p.Name.Contains(filter)))
+    .RequireAuthorization();
 
-app.MapGet("/users/{id}", (int id) =>
+app.MapGet("/users/{id}", (int id, HttpContext context) =>
 {
+    var user = context.User.Identity?.Name;
     var person = persons.FirstOrDefault(p => p.Id == id);
 
     return person is not null ? Results.Ok(person) : Results.NotFound();

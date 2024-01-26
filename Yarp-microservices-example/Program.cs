@@ -11,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 // ADD CONFIGURATION
 // health
 builder.Services.AddHealthChecks();
+builder.Services.AddCors();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -19,11 +20,10 @@ builder.Services.AddRateLimiter(rateLimiterOptions =>
 {
     rateLimiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    rateLimiterOptions.AddPolicy("fixedIdentity", httpContext => 
+    rateLimiterOptions.AddPolicy("byIP", httpContext => 
         RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.User.Identity?.Name?.ToString(),
-            factory: s =>
-            
+            partitionKey: httpContext.Request.Host.ToString(),
+            factory: _ =>
                 new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = 10,
@@ -47,10 +47,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             };
         });
 
-// authorization
+// authorization 
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("authenticated", policyBuilder => policyBuilder.RequireAuthenticatedUser());
+    options.AddPolicy("authenticatedAndAdmin", policyBuilder =>
+    {
+        policyBuilder.RequireAuthenticatedUser();
+        policyBuilder.RequireClaim("isAdmin", "true");
+    });
 });
 
 // reverse proxy
@@ -70,11 +75,16 @@ if (app.Environment.IsDevelopment())
 // health
 app.MapHealthChecks("/healthz");
 
-app.UseRateLimiter();
+// cors
+app.UseCors();
 
 // authorization
 app.UseAuthentication();
 app.UseAuthorization();
+
+// use rate limiter AFTER setting auth, so it can access to the user property and check it is authorized
+app.UseRateLimiter();
+
 
 app.MapGet("/generateToken", (IConfiguration configuration) =>
 {
@@ -106,7 +116,7 @@ string GenerateJwtToken(JwtConfiguration jwtSettings, string userId)
     var claims = new List<Claim>
     {
         new ("userId", userId),
-        new ("name", "tonde")
+        new (ClaimTypes.Name, "tonde")
     };
 
     var token = new JwtSecurityToken(
