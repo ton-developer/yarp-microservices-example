@@ -9,15 +9,31 @@ services:
       - "5000:5000"
       - "5001:5001"
     networks:
-      - mynetwork
+      - microservicesnetwork
 
   user-api:
     build:
       context: ./User-microservices-example
       dockerfile: Dockerfile
     networks:
-      - mynetwork
+      - microservicesnetwork
+
+  user-postgresql:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: userDatabase
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+    ports:
+      - "5432:5432"
+  
+  blog-api:
+    build:
+      context: ./Blog-microservices-example
+      dockerfile: Dockerfile
+    networks:
+      - microservicesnetwork
 
 networks:
-  mynetwork:
+  microservicesnetwork:
     driver: bridge
