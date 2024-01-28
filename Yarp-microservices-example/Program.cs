@@ -43,7 +43,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 ValidateIssuerSigningKey = true,
                 ValidIssuer = jwtSettings["Issuer"],
                 ValidAudience = jwtSettings["Audience"],
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]))
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!))
             };
         });
 
@@ -54,7 +54,8 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("authenticatedAndAdmin", policyBuilder =>
     {
         policyBuilder.RequireAuthenticatedUser();
-        policyBuilder.RequireClaim("isAdmin", "true");
+        policyBuilder.RequireClaim("user_id");
+        policyBuilder.RequireRole("Admin");
     });
 });
 
@@ -85,48 +86,7 @@ app.UseAuthorization();
 // use rate limiter AFTER setting auth, so it can access to the user property and check it is authorized
 app.UseRateLimiter();
 
-
-app.MapGet("/generateToken", (IConfiguration configuration) =>
-{
-    var jwtSettingsSections = configuration.GetSection("JwtSettings");
-    
-    var jwtSettings = new JwtConfiguration
-    {
-        Issuer = jwtSettingsSections["Issuer"],
-        Audience = jwtSettingsSections["Audience"],
-        SecretKey = jwtSettingsSections["SecretKey"]
-    };
-
-    var userId = "123"; 
-
-    var token = GenerateJwtToken(jwtSettings, userId);
-    return Results.Text(token);
-});
-
 // reverse proxy
 app.MapReverseProxy();
 
 app.Run("http://localhost:5000");
-
-string GenerateJwtToken(JwtConfiguration jwtSettings, string userId)
-{
-    var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey));
-    var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-    var claims = new List<Claim>
-    {
-        new ("userId", userId),
-        new (ClaimTypes.Name, "tonde")
-    };
-
-    var token = new JwtSecurityToken(
-        issuer: jwtSettings.Issuer,
-        audience: jwtSettings.Audience,
-        claims: claims,
-        expires: DateTime.UtcNow.AddHours(1),
-        signingCredentials: credentials
-    );
-
-    var tokenHandler = new JwtSecurityTokenHandler();
-    return tokenHandler.WriteToken(token);
-}
