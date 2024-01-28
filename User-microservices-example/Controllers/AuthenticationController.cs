@@ -6,7 +6,7 @@ namespace User_microservices_example.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-public class AuthenticationController(IAuthService authService, ILogger<AuthenticationController> logger)
+public class AuthenticationController(AuthService authService, ILogger<AuthenticationController> logger)
     : ControllerBase
 {
 
@@ -48,7 +48,7 @@ public class AuthenticationController(IAuthService authService, ILogger<Authenti
         {
             if (!ModelState.IsValid)
                 return BadRequest("Invalid payload");
-            var (status, message) = await authService.Registration(model, UserRoles.Admin);
+            var (status, message) = await authService.Registration(model, UserRoles.User);
             if (status == 0)
             {
                 return BadRequest(message);

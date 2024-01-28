@@ -8,7 +8,8 @@ using User_microservices_example.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddTransient<IAuthService,AuthService>();
+builder.Services.AddTransient(typeof(AuthService));
+builder.Services.AddTransient(typeof(UserService));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

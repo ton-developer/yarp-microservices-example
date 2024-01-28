@@ -11,7 +11,6 @@ public class AuthService(
     UserManager<IdentityUser> userManager,
     RoleManager<IdentityRole> roleManager,
     IConfiguration configuration)
-    : IAuthService
 {
 
     public async Task CreateRoles()
@@ -23,18 +22,23 @@ public class AuthService(
     }
     public async Task<(int, string)> Registration(RegistrationModel model, string role)
     {
-        var a_ver_que_sale = await userManager.FindByEmailAsync(model.Email!);
+        var existingUser = await userManager.FindByEmailAsync(model.Email!);
+        if (existingUser != null)
+            return (0, "Email already in use");
 
-        var user = new IdentityUser()
+        var newUser = new IdentityUser()
         {
             Email = model.Email,
             SecurityStamp = Guid.NewGuid().ToString(),
             UserName = model.Username
         };
         
-        var successful = await userManager.CreateAsync(user, model.Password!);
+        var createUserResult = await userManager.CreateAsync(newUser, model.Password!);
 
-        await userManager.AddToRoleAsync(user, role);
+        if (!createUserResult.Succeeded)
+            return (0, string.Concat(createUserResult.Errors));
+
+        await userManager.AddToRoleAsync(newUser, role);
 
         return (1, "User created successfully!");
     }
