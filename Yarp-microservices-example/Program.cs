@@ -1,15 +1,10 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Yarp_microservices_example.LoginService;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ADD CONFIGURATION
-// health
 builder.Services.AddHealthChecks();
 builder.Services.AddCors();
 
@@ -37,7 +32,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme,
         options =>
         {
-            IConfigurationSection jwtSettings = builder.Configuration.GetSection("JwtSettings");
+            var jwtSettings = builder.Configuration.GetSection("JwtSettings");
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,
@@ -48,16 +43,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         });
 
 // authorization 
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("authenticated", policyBuilder => policyBuilder.RequireAuthenticatedUser());
-    options.AddPolicy("authenticatedAndAdmin", policyBuilder =>
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("authenticated", policyBuilder => policyBuilder.RequireAuthenticatedUser())
+    .AddPolicy("authenticatedAndAdmin", policyBuilder =>
     {
         policyBuilder.RequireAuthenticatedUser();
         policyBuilder.RequireClaim("user_id");
         policyBuilder.RequireRole("Admin");
     });
-});
 
 // reverse proxy
 builder.Services.AddReverseProxy()
