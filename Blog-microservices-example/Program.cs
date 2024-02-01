@@ -1,6 +1,7 @@
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
-app.MapGet("/", () => "Hello World!");
+app.MapGet("/user/{userId}/AddBlog", (string userId) => $"Hello {userId}")
+    .RequireAuthorization();
 
-app.Run();
+app.Run("http://localhost:5100");
